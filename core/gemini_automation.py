@@ -492,12 +492,20 @@ class GeminiAutomation:
             ses_obj = next((c for c in cookies if c["name"] == "__Secure-C_SES"), None)
             # 使用北京时区，确保时间计算正确（Cookie expiry 是 UTC 时间戳）
             beijing_tz = timezone(timedelta(hours=8))
+            # 从环境变量读取账户有效期配置（默认48小时）
+            try:
+                account_expires_hours = int(os.getenv("ACCOUNT_EXPIRES_HOURS", "48"))
+            except (ValueError, TypeError):
+                account_expires_hours = 48
+
             if ses_obj and "expiry" in ses_obj:
-                # 将 UTC 时间戳转为北京时间，再减去12小时作为刷新窗口
+                # 将 UTC 时间戳转为北京时间，再减去配置的有效期作为刷新窗口
                 cookie_expire_beijing = datetime.fromtimestamp(ses_obj["expiry"], tz=beijing_tz)
-                expires_at = (cookie_expire_beijing - timedelta(hours=12)).strftime("%Y-%m-%d %H:%M:%S")
+                calculated_time = cookie_expire_beijing - timedelta(hours=account_expires_hours)
+                # 边界保护：如果计算出的时间早于当前时间，使用当前时间+有效期
+                expires_at = max(datetime.now(beijing_tz), calculated_time).strftime("%Y-%m-%d %H:%M:%S")
             else:
-                expires_at = (datetime.now(beijing_tz) + timedelta(hours=12)).strftime("%Y-%m-%d %H:%M:%S")
+                expires_at = (datetime.now(beijing_tz) + timedelta(hours=account_expires_hours)).strftime("%Y-%m-%d %H:%M:%S")
 
             config = {
                 "id": email,
